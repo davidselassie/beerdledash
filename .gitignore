@@ -1,0 +1,7 @@
+/out
+/deploy
+
+/.idea
+/.idea_modules
+
+.DS_Store
