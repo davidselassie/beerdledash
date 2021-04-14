@@ -5,7 +5,7 @@ import HtmlRenderer.htmlContent
 import ScalatagsMarshallers._
 import akka.actor.typed.scaladsl.AskPattern.{Askable, schedulerFromActorSystem}
 import akka.actor.typed.{ActorRef, ActorSystem}
-import akka.http.scaladsl.model.{HttpEntity, MediaTypes, StatusCodes}
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives.{
   complete,
   concat,
@@ -17,19 +17,9 @@ import akka.http.scaladsl.server.Directives.{
   redirect
 }
 import akka.http.scaladsl.server.Route
-import akka.stream.scaladsl.StreamConverters
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.client.j2se.MatrixToImageWriter
-import com.google.zxing.qrcode.QRCodeWriter
-import scalatags.Text.attrs.{
-  `type`,
-  id,
-  method,
-  name,
-  placeholder,
-  required,
-  value
-}
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import com.google.zxing.qrcode.encoder.Encoder
+import scalatags.Text.attrs.{`type`, method, name, placeholder, required, value}
 import scalatags.Text.implicits._
 import scalatags.Text.tags.{form, h1, input, label}
 import scalatags.Text.tags2.main
@@ -128,16 +118,10 @@ class JoinRoute(
 
   private def handleQr() = queryGame(directory, system, askTimeout) {
     (code, room, state) =>
-      val matrix = new QRCodeWriter()
-        .encode(joinUrlStr(code), BarcodeFormat.QR_CODE, 300, 300)
-      val (outputStream, source) = StreamConverters
-        .asOutputStream()
-        .preMaterialize()
-      try {
-        MatrixToImageWriter.writeToStream(matrix, "PNG", outputStream)
-      } finally {
-        outputStream.close()
-      }
-      complete(HttpEntity(MediaTypes.`image/png`, source))
+      import QRCodeToSVGWriter.SVGGraphics2DMarshaller
+
+      val qr = Encoder.encode(joinUrlStr(code), ErrorCorrectionLevel.M)
+      val svg = QRCodeToSVGWriter.render(qr)
+      complete(svg)
   }
 }

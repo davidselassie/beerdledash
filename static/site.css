@@ -41,6 +41,11 @@ blockquote {
   color: #888;
 }
 
+.qr {
+    width: 300px;
+    height: 300px;
+}
+
 @media print {
 	body {
 		max-width: none;

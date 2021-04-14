@@ -175,8 +175,7 @@ class ServerRoute(
         " to join."
       ),
       img(
-        width := "300px",
-        height := "300px", {
+        `class` := "qr", {
           val query = Map("code" -> code)
           src := s"/join/qr?${query.queryString()}"
         },
