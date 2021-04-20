@@ -130,7 +130,7 @@ class JoinRoute(
 
   private def handleQr() = queryGame(directory, system, askTimeout) {
     (code, room, state) =>
-      import QRCodeToSVGWriter.SVGGraphics2DMarshaller
+      import QRCodeToSVGWriter.SvgMarshaller
 
       val qr = Encoder.encode(joinUrlStr(code), ErrorCorrectionLevel.M)
       val svg = QRCodeToSVGWriter.render(qr)

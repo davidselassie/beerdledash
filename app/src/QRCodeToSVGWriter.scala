@@ -1,35 +1,56 @@
 import akka.http.scaladsl.marshalling.{Marshaller, ToEntityMarshaller}
 import akka.http.scaladsl.model.{HttpEntity, MediaType}
 import com.google.zxing.qrcode.encoder.QRCode
-import org.jfree.graphics2d.svg.SVGGraphics2D
-
-import java.awt.Color
+import scalatags.Text.TypedTag
+import scalatags.Text.implicits._
+import scalatags.Text.svgAttrs.{
+  height,
+  shapeRendering,
+  viewBox,
+  width,
+  x,
+  xmlns,
+  y
+}
+import scalatags.Text.svgTags.{rect, svg}
+import scalatags.generic.Namespace
 
 object QRCodeToSVGWriter {
 
-  def render(qr: QRCode, scale: Int = 1): SVGGraphics2D = {
+  private val quietZone = 4
+
+  final case class Svg(tag: TypedTag[String]) extends AnyVal
+
+  def render(qr: QRCode): Svg = {
     val mat = qr.getMatrix
 
-    val ctx = new SVGGraphics2D(mat.getWidth * scale, mat.getHeight * scale)
-    ctx.setColor(Color.BLACK)
-
-    for (
-      y <- Range(0, mat.getHeight);
-      x <- Range(0, mat.getWidth)
-    ) {
-      if (mat.get(x, y) > 0) {
-        ctx.fillRect(x * scale, y * scale, scale, scale)
+    val rects =
+      for (
+        moduleX <- Range(0, mat.getHeight);
+        moduleY <- Range(0, mat.getWidth) if mat.get(moduleX, moduleY) > 0
+      ) yield {
+        rect(
+          x := moduleX,
+          y := moduleY,
+          width := 1,
+          height := 1
+        )
       }
-    }
 
-    ctx
+    Svg(
+      svg(
+        xmlns := Namespace.svgNamespaceConfig.uri,
+        viewBox := s"${-quietZone} ${-quietZone} ${mat.getWidth + quietZone * 2} ${mat.getHeight + quietZone * 2}",
+        shapeRendering := "crispEdges"
+      )(rects: _*)
+    )
   }
 
   val `image/svg+xml`: MediaType.WithOpenCharset =
     MediaType.customWithOpenCharset("image", "svg+xml", List("svg"))
 
-  implicit val SVGGraphics2DMarshaller: ToEntityMarshaller[SVGGraphics2D] =
-    Marshaller.withOpenCharset(`image/svg+xml`) { (ctx, charset) =>
-      HttpEntity(`image/svg+xml`.withCharset(charset), ctx.getSVGDocument)
+  implicit val SvgMarshaller: ToEntityMarshaller[Svg] =
+    Marshaller.withOpenCharset(`image/svg+xml`) { (svg, charset) =>
+      HttpEntity(`image/svg+xml`.withCharset(charset), svg.tag.render)
     }
 }

@@ -12,7 +12,6 @@ object app extends ScalaModule {
     ivy"com.typesafe.akka::akka-http:10.2.3",
     ivy"com.lihaoyi::scalatags:0.8.2",
     ivy"com.google.zxing:core:3.4.1",
-    ivy"org.jfree:jfreesvg:3.4",
     ivy"ch.qos.logback:logback-classic:1.2.3"
   )
 }
