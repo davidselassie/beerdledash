@@ -1,4 +1,7 @@
-import scalatags.Text.all._
+import scalatags.Text.Frag
+import scalatags.Text.attrs.{content, href, lang, name, rel}
+import scalatags.Text.implicits._
+import scalatags.Text.tags.{body, doctype, frag, head, html, link, meta}
 import scalatags.Text.tags2.title
 
 object HtmlRenderer {

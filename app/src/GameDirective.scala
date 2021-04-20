@@ -1,7 +1,8 @@
 import GameTypes.Name
+import HtmlRenderer.htmlContent
+import ScalatagsMarshallers._
 import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.server.{Directive, Directive1}
 import akka.http.scaladsl.server.Directives.{
   complete,
   formFields,
@@ -9,38 +10,24 @@ import akka.http.scaladsl.server.Directives.{
   parameters,
   tprovide
 }
+import akka.http.scaladsl.server.{Directive, Directive1}
 import akka.util.Timeout
-import scalatags.Text.all._
+import scalatags.Text.attrs.{href, id}
+import scalatags.Text.implicits._
+import scalatags.Text.tags.{a, h1, p, code => codetag}
+import scalatags.Text.tags2.main
 
 object GameDirective {
-  import ScalatagsMarshallers._
   import akka.actor.typed.scaladsl.AskPattern.{
     Askable,
     schedulerFromActorSystem
   }
 
-  private def gameNotFoundBody(code: String) = doctype("html")(
-    html(lang := "en")(
-      head(
-        meta(
-          name := "viewport",
-          content := "width=device-width, initial-scale=1"
-        ),
-        link(rel := "stylesheet", href := "static/site.css"),
-        link(rel := "icon", href := "static/favicon.png"),
-        tag("title")("Beerdledash")
-      ),
-      body(
-        h1("No Game ", code),
-        tag("main")(id := "main")(
-          p("There's no game with that code... yet."),
-          p(
-            "Go back to the ",
-            a(href := "/")("main page"),
-            " and make a new game."
-          )
-        )
-      )
+  private def gameNotFoundBody(code: String) = htmlContent(
+    main(id := "main")(
+      h1("No Game ", codetag(code)),
+      p("There's no game with code ", codetag(code), "... yet."),
+      p(a(href := "/")("Go back to the main page and make a new game."))
     )
   )
 

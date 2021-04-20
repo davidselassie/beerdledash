@@ -30,10 +30,10 @@ object Guardian {
 
     val routes = Seq(
       new IndexRoute(),
+      new HowToPlayRoute(),
       new CreateRoute(directory),
       joinRoute,
-      new PlayerRoute(directory),
-      new ServerRoute(joinRoute, directory)
+      new GameRoute(joinRoute, directory)
     ) ++ config.staticDir.map { (staticDir) =>
       ctx.log.info("Static dir is {}", staticDir)
       new StaticRoute(staticDir)

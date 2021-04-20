@@ -28,16 +28,44 @@ h1, h2, h3 {
 	line-height: 1.2;
 }
 
+code {
+  font-size: 1.5em;
+}
+
 textarea {
+  font: inherit;
   box-sizing: border-box;
   width: 100%;
+}
+
+input {
+  font-size: inherit;
+}
+
+input[type="text"] {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+input[type="submit"] {
+  border-radius: 0.5em;
+}
+
+input[type="radio"] {
+  width: 1em;
+  height: 1em;
 }
 
 blockquote {
   font-style: italic;
 }
 
-.placeholder {
+.center {
+  display: flex;
+  justify-content: space-around;
+}
+
+aside, .aside {
   color: #888;
 }
 

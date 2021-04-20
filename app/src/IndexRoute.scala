@@ -1,3 +1,4 @@
+import AutoTags.autocapitalize
 import HtmlRenderer.htmlContent
 import ScalatagsMarshallers._
 import akka.http.scaladsl.model.StatusCodes
@@ -6,16 +7,16 @@ import akka.http.scaladsl.server.Route
 import scalatags.Text.attrs.{
   `type`,
   action,
-  id,
   method,
   name,
   placeholder,
   required,
-  value
+  value,
+  href
 }
 import scalatags.Text.implicits._
-import scalatags.Text.tags.{form, frag, h1, h2, header, input, label, p}
-import scalatags.Text.tags2.{main, section}
+import scalatags.Text.tags.{a, form, h1, h2, input, label, p}
+import scalatags.Text.tags2.main
 
 class IndexRoute() extends RouteObj {
 
@@ -30,6 +31,7 @@ class IndexRoute() extends RouteObj {
         main(
           h1("Welcome to Beerdledash!"),
           p("It's like Balderdash for beer descriptions."),
+          p(a(href := "/howto")("Learn how to play.")),
           form(action := "/create", method := "POST")(
             h2("New Game"),
             input(`type` := "submit", value := "Create")
@@ -42,10 +44,11 @@ class IndexRoute() extends RouteObj {
                 `type` := "text",
                 name := "code",
                 required,
+                autocapitalize := "characters",
                 placeholder := "ABCD"
               )
             ),
-            input(`type` := "submit", value := "Join")
+            p(input(`type` := "submit", value := "Join"))
           )
         )
       )

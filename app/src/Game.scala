@@ -57,11 +57,13 @@ object Game {
   object State {
 
     final case class WaitingState(
+        leader: Option[Name],
         canStart: Boolean,
         playerBeers: Map[Name, Option[Beer]]
     ) extends State
 
     final case class WritingState(
+        leader: Name,
         roundNum: RoundNum,
         host: Name,
         beer: Beer,
@@ -71,6 +73,7 @@ object Game {
     ) extends State
 
     final case class ReadingState(
+        leader: Name,
         roundNum: RoundNum,
         host: Name,
         beer: Beer,
@@ -82,6 +85,7 @@ object Game {
     ) extends State
 
     final case class VotingState(
+        leader: Name,
         roundNum: RoundNum,
         host: Name,
         beer: Beer,
@@ -92,6 +96,7 @@ object Game {
     ) extends State
 
     final case class FinRoundState(
+        leader: Name,
         thisRoundRecord: RoundRecord,
         roundsRemaining: Seq[Round],
         roundLog: Seq[RoundRecord]
@@ -104,7 +109,7 @@ object Game {
 
   }
 
-  private val InitState = State.WaitingState(canStart = false, Map.empty)
+  private val InitState = State.WaitingState(None, canStart = false, Map.empty)
 
   def apply(random: Random): Behavior[Msg] = Behaviors.setup { (ctx) =>
     val timeoutMonitor = ctx.spawn(GameMonitor(ctx.self), "timeout")
@@ -177,8 +182,13 @@ private class Game(
   def waitingBehavior(state: State.WaitingState) =
     behaviorFor(waitingHandler, state)
 
-  private def canStart(playerBeers: Map[Name, Option[Beer]]): Boolean = {
-    playerBeers.size > 2 && playerBeers.values.forall(_.nonEmpty)
+  private def canStart(
+      leader: Option[Name],
+      playerBeers: Map[Name, Option[Beer]]
+  ): Boolean = {
+    leader.isDefined && playerBeers.size > 2 && playerBeers.values.forall(
+      _.nonEmpty
+    )
   }
 
   private def waitingHandler(
@@ -186,9 +196,11 @@ private class Game(
   ): PartialFunction[Msg, Behavior[Msg]] = {
     case msg @ Msg.PlayerJoin(name) => {
       if (!state.playerBeers.contains(name)) {
+        val newLeader = Some(state.leader.getOrElse(name))
         val newPlayerBeers = state.playerBeers.updated(name, None)
         val newState = state.copy(
-          canStart = canStart(newPlayerBeers),
+          leader = newLeader,
+          canStart = canStart(newLeader, newPlayerBeers),
           playerBeers = newPlayerBeers
         )
         transitionTo(waitingBehavior, msg, newState)
@@ -200,12 +212,12 @@ private class Game(
       val newPlayerBeers = state.playerBeers.updated(name, Some(beer))
       val newState =
         state.copy(
-          canStart = canStart(newPlayerBeers),
+          canStart = canStart(state.leader, newPlayerBeers),
           playerBeers = newPlayerBeers
         )
       transitionTo(waitingBehavior, msg, newState)
     }
-    case msg @ Msg.StartGame if canStart(state.playerBeers) => {
+    case msg @ Msg.StartGame if canStart(state.leader, state.playerBeers) => {
       val playerBeers = state.playerBeers.flatten {
         case (name, Some(beer)) => Seq((name, beer))
         case (_, None)          => Seq.empty
@@ -215,9 +227,10 @@ private class Game(
       } yield {
         Round(RoundNum(i + 1), host, beer)
       }
-      rounds match {
-        case firstRound :: roundsRemaining => {
+      (state.leader, rounds) match {
+        case (Some(leader), firstRound :: roundsRemaining) => {
           val newState = State.WritingState(
+            leader,
             firstRound.num,
             firstRound.host,
             firstRound.beer,
@@ -227,7 +240,7 @@ private class Game(
           )
           transitionTo(writingBehavior, msg, newState)
         }
-        case Seq() => {
+        case _ => {
           val newState = State.FinRoomState(
             Map.empty,
             Seq.empty
@@ -261,6 +274,7 @@ private class Game(
           BallotEntry(BallotIndex(i + 1), desc, writer)
         }
         val newState = State.ReadingState(
+          state.leader,
           state.roundNum,
           state.host,
           state.beer,
@@ -297,6 +311,7 @@ private class Game(
           val voters = ballot.map(_.writer).toSet - state.host
           if (voters.size > 1) {
             val newState = State.VotingState(
+              state.leader,
               state.roundNum,
               state.host,
               state.beer,
@@ -308,6 +323,7 @@ private class Game(
             transitionTo(votingBehavior, msg, newState)
           } else {
             val newState = State.FinRoundState(
+              state.leader,
               RoundRecord(
                 state.roundNum,
                 state.beer,
@@ -392,6 +408,7 @@ private class Game(
           .partition(_.writer == state.host)
 
         val newState = State.FinRoundState(
+          state.leader,
           RoundRecord(
             state.roundNum,
             state.beer,
@@ -419,6 +436,7 @@ private class Game(
       state.roundsRemaining match {
         case nextRound :: newRoundsRemaining => {
           val newState = State.WritingState(
+            state.leader,
             nextRound.num,
             nextRound.host,
             nextRound.beer,

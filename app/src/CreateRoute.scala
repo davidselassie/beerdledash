@@ -22,7 +22,7 @@ class CreateRoute(directory: ActorRef[Directory.Msg])(implicit
     onSuccess(directory.ask((replyTo) => Directory.Create(replyTo))) {
       case Directory.Created(code, _) => {
         val query = Map("code" -> code)
-        redirect(s"/server?${query.queryString()}", StatusCodes.SeeOther)
+        redirect(s"/join?${query.queryString()}", StatusCodes.SeeOther)
       }
     }
 }

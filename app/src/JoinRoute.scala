@@ -1,3 +1,4 @@
+import AutoTags.autocomplete
 import Extensions.QueryStringEx
 import GameDirective.{formPlayer, queryGame}
 import GameTypes.Name
@@ -19,9 +20,17 @@ import akka.http.scaladsl.server.Directives.{
 import akka.http.scaladsl.server.Route
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.google.zxing.qrcode.encoder.Encoder
-import scalatags.Text.attrs.{`type`, method, name, placeholder, required, value}
+import scalatags.Text.attrs.{
+  `type`,
+  href,
+  method,
+  name,
+  placeholder,
+  required,
+  value
+}
 import scalatags.Text.implicits._
-import scalatags.Text.tags.{form, h1, input, label}
+import scalatags.Text.tags.{a, form, h1, input, label, p, code => codetag}
 import scalatags.Text.tags2.main
 
 import java.net.URL
@@ -45,48 +54,51 @@ class JoinRoute(
     )
   }
 
+  private def bodyContent(code: String) = htmlContent(
+    main(
+      form(method := "POST")(
+        h1("Join Game ", codetag(code)),
+        label(
+          "What's your name? ",
+          input(
+            `type` := "text",
+            name := "name",
+            autocomplete := "given-name",
+            required,
+            placeholder := "Rob"
+          )
+        ),
+        p(input(`type` := "submit", value := "Join"))
+      )
+    )
+  )
+
+  private def gameAlreadyStartedBody(code: String) = htmlContent(
+    main(
+      h1("Game ", codetag(code), " Already Started"),
+      p("You can only join a game before it starts."),
+      p(
+        "If someone accidentally pressed Start Game, ",
+        a(href := "/create")("create a new game"),
+        " and have everyone join with that new code."
+      )
+    )
+  )
+
   private def handleGet() = queryGame(directory, system, askTimeout) {
     (code, room, state) =>
       state match {
         case _: Game.State.WaitingState =>
-          complete(
-            StatusCodes.OK,
-            htmlContent(
-              main(
-                h1("Join Game ", code),
-                form(method := "POST")(
-                  label(
-                    "What's your name? ",
-                    input(
-                      `type` := "text",
-                      name := "name",
-                      required,
-                      placeholder := "Rob"
-                    )
-                  ),
-                  input(`type` := "submit", value := "Join")
-                )
-              )
-            )
-          )
-        case _ =>
-          complete(
-            StatusCodes.BadRequest,
-            "Game already in progress. Can't join."
-          )
+          complete(StatusCodes.OK, bodyContent(code))
+        case _ => complete(StatusCodes.BadRequest, gameAlreadyStartedBody(code))
       }
-
   }
 
   private def handlePost() = formPlayer { (player) =>
     queryGame(directory, system, askTimeout) { (code, room, state) =>
       state match {
         case _: Game.State.WaitingState => join(player, code, room)
-        case _ =>
-          complete(
-            StatusCodes.BadRequest,
-            "Game already in progress. Can't join."
-          )
+        case _                          => complete(StatusCodes.BadRequest, gameAlreadyStartedBody(code))
       }
     }
   }
@@ -102,7 +114,7 @@ class JoinRoute(
         "code" -> code,
         "name" -> player.toString
       )
-      redirect(s"/player?${query.queryString()}", StatusCodes.SeeOther)
+      redirect(s"/game?${query.queryString()}", StatusCodes.SeeOther)
     }
   }
 
