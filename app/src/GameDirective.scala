@@ -24,10 +24,9 @@ object GameDirective {
   }
 
   private def gameNotFoundBody(code: String) = htmlContent(
-    main(id := "main")(
+    main(
       h1("No Game ", codetag(code)),
-      p("There's no game with code ", codetag(code), "... yet."),
-      p(a(href := "/")("Go back to the main page and make a new game."))
+      p("There's no game with code ", codetag(code), ".")
     )
   )
 
