@@ -10,7 +10,7 @@ object GameTypes {
   final case class RoundRecord(
       roundNum: RoundNum,
       beer: Beer,
-      trueEntry: ScoredBallotEntry,
+      realEntry: ScoredBallotEntry,
       fakeEntries: Seq[ScoredBallotEntry],
       roundScores: Map[Name, Int]
   )
@@ -19,6 +19,7 @@ object GameTypes {
       index: BallotIndex,
       desc: Desc,
       writer: Name,
-      voters: Set[Name]
+      voters: Set[Name],
+      points: Map[Name, Int]
   )
 }

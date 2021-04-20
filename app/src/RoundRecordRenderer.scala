@@ -24,81 +24,80 @@ object RoundRecordRenderer {
     map.toSeq
       .sortBy { case (name, _) => name.toString }
 
+  def renderPoints(points: Map[Name, Int]): Frag = {
+    val pointsToNames = points
+      .groupMap { case (name, points) => points } { case (name, points) =>
+        name
+      }
+      .filter { case (points, names) => points != 0 }
+    for ((points, names) <- pointsToNames.toSeq)
+      yield p(
+        "+",
+        points,
+        if (points != 1) {
+          " points"
+        } else {
+          " point"
+        },
+        " to ",
+        names.map(_.toString).mkString(", "),
+        "."
+      )
+  }
+
   def renderRoundRecord(roundRecord: RoundRecord): Frag = frag(
-    p("The host this round was ", roundRecord.trueEntry.writer.toString, "."),
+    p("The host this round was ", roundRecord.realEntry.writer.toString, "."),
     h3(
-      "Actual: Description ",
-      roundRecord.trueEntry.index.toInt
+      "Real: Description ",
+      roundRecord.realEntry.index.toInt
     ),
-    blockquote(roundRecord.trueEntry.desc.toString),
+    blockquote(roundRecord.realEntry.desc.toString),
     aside(
-      if (roundRecord.trueEntry.voters.nonEmpty) {
+      p(if (roundRecord.realEntry.voters.nonEmpty) {
         frag(
-          p(
-            if (roundRecord.trueEntry.voters.size != 1) {
-              "Votes"
-            } else {
-              "A vote"
-            },
-            " from ",
-            roundRecord.trueEntry.voters.map(_.toString).mkString(", "),
-            "."
-          ),
-          p(
-            "+2 points to ",
-            roundRecord.trueEntry.voters.map(_.toString).mkString(", "),
-            "."
-          )
+          if (roundRecord.realEntry.voters.size != 1) {
+            "Votes"
+          } else {
+            "A vote"
+          },
+          " from ",
+          roundRecord.realEntry.voters.map(_.toString).mkString(", "),
+          "."
         )
       } else {
-        frag(
-          p("No votes."),
-          p(
-            "+3 points to ",
-            roundRecord.trueEntry.writer.toString,
-            "."
-          )
-        )
-      }
+        "No votes."
+      }),
+      if (roundRecord.realEntry.points.nonEmpty) {
+        renderPoints(roundRecord.realEntry.points)
+      } else {}
     ),
-    for (entry <- roundRecord.fakeEntries.sortBy(_.voters.size).reverse)
+    for (fakeEntry <- roundRecord.fakeEntries.sortBy(_.voters.size).reverse)
       yield frag(
         h3(
           "Fake: Description ",
-          entry.index.toInt,
+          fakeEntry.index.toInt,
           " by ",
-          entry.writer.toString
+          fakeEntry.writer.toString
         ),
-        blockquote(entry.desc.toString),
+        blockquote(fakeEntry.desc.toString),
         aside(
-          if (entry.voters.nonEmpty) {
+          p(if (fakeEntry.voters.nonEmpty) {
             frag(
-              p(
-                if (roundRecord.trueEntry.voters.size != 1) {
-                  "Votes"
-                } else {
-                  "A vote"
-                },
-                " from ",
-                entry.voters.map(_.toString).mkString(", "),
-                "."
-              ),
-              p(
-                "+",
-                entry.voters.size,
-                if (entry.voters.size != 1) {
-                  " points"
-                } else {
-                  " point"
-                },
-                " to ",
-                entry.writer.toString,
-                "."
-              )
+              if (fakeEntry.voters.size != 1) {
+                "Votes"
+              } else {
+                "A vote"
+              },
+              " from ",
+              fakeEntry.voters.map(_.toString).mkString(", "),
+              "."
             )
           } else {
-            p("No votes.")
-          }
+            "No votes."
+          }),
+          if (fakeEntry.points.nonEmpty) {
+            renderPoints(fakeEntry.points)
+          } else {}
         )
       )
   )

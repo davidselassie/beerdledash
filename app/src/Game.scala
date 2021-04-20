@@ -331,7 +331,8 @@ private class Game(
                   state.entry.index,
                   state.entry.desc,
                   state.entry.writer,
-                  Set.empty
+                  Set.empty,
+                  Map(state.host -> 3)
                 ),
                 Seq.empty,
                 Map(state.host -> 3)
@@ -359,61 +360,67 @@ private class Game(
         val newState = state.copy(votes = newVotes)
         transitionTo(votingBehavior, msg, newState)
       } else {
+        val (realEntries, fakeEntries) = state.ballot
+          .partition(_.writer == state.host)
+        val realEntry = realEntries.head
+
         val votes = newVotes.flatMap {
           case (voter, Some(i)) => Seq((voter, i))
           case (_, None)        => Seq.empty
         }
-        val voterToWriter = votes.map { case (voter, i) =>
-          (voter, state.ballot(i.toInt - 1).writer)
-        }
+        val voterToWriter = votes
+          .filter { case (voter, _) =>
+            voter != state.host
+          } // Host shouldn't be able to vote.
+          .map { case (voter, i) =>
+            (voter, state.ballot(i.toInt - 1).writer)
+          }
         val writerToVoters = voterToWriter
           .groupMapReduce { case (voter, writer) => writer } {
             case (voter, writer) => Set(voter)
           }((v, acc) => v ++ acc)
 
-        val zeroFillPoints = state.ballot.map((be) => (be.writer, 0)).toMap
-        val pickedTruthPoints = writerToVoters
-          .getOrElse(state.host, Set.empty)
-          .map(voter => (voter, 2))
-          .toMap
-        val nobodyPickedTruthPoints = if (pickedTruthPoints.isEmpty) {
-          Map(state.host -> 3)
-        } else {
-          Map.empty[Name, Int]
-        }
-        val fakedOutPoints = writerToVoters
-          .removed(state.host)
-          .map { case (writer, voters) =>
-            (writer, voters.size * 1)
+        val realVoters = writerToVoters.getOrElse(realEntry.writer, Set.empty)
+        val realScoredEntry = ScoredBallotEntry(
+          realEntry.index,
+          realEntry.desc,
+          realEntry.writer,
+          realVoters,
+          if (realVoters.nonEmpty) {
+            realVoters
+              .map(voter => (voter, 2))
+              .toMap
+          } else {
+            Map(state.host -> 3)
           }
-        val nameToScore = Seq(
-          zeroFillPoints,
-          pickedTruthPoints,
-          nobodyPickedTruthPoints,
-          fakedOutPoints
-        ).flatten
+        )
+
+        val fakeScoredEntries = for (fakeEntry <- fakeEntries) yield {
+          val fakeVoters = writerToVoters.getOrElse(fakeEntry.writer, Set.empty)
+          val validFakeVoters = fakeVoters - fakeEntry.writer
+          ScoredBallotEntry(
+            fakeEntry.index,
+            fakeEntry.desc,
+            fakeEntry.writer,
+            fakeVoters,
+            Map(fakeEntry.writer -> validFakeVoters.size)
+          )
+        }
+
+        val zeroFillPoints = state.ballot.map((be) => (be.writer, 0)).toMap
+        val nameToScore = (Seq(zeroFillPoints, realScoredEntry.points)
+          ++ fakeScoredEntries.map(_.points)).flatten
           .groupMapReduce({ case (name, score) => name })({
             case (name, score) => score
           })(_ + _)
-
-        val (trueEntry, fakeEntries) = state.ballot
-          .map(be =>
-            ScoredBallotEntry(
-              be.index,
-              be.desc,
-              be.writer,
-              writerToVoters.getOrElse(be.writer, Set.empty)
-            )
-          )
-          .partition(_.writer == state.host)
 
         val newState = State.FinRoundState(
           state.leader,
           RoundRecord(
             state.roundNum,
             state.beer,
-            trueEntry.head,
-            fakeEntries,
+            realScoredEntry,
+            fakeScoredEntries,
             nameToScore
           ),
           state.roundsRemaining,

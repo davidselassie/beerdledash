@@ -207,6 +207,8 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
     }
   }
 
+  private def confirm() = span(`class` := "confirm")(" ✅")
+
   private def waitingContent(
       code: String,
       player: Name,
@@ -235,7 +237,8 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
         )
       ),
       p(
-        "Every player is assigned a beer for their round. That round, they will lookup the true brewer's beer description and read aloud all descriptions."
+        "While everyone is gathering, ",
+        a(href := "/howto", target := "_blank")("learn how to play.")
       ),
       h2("Players and Beers"),
       form(id := "assign", method := "POST")(
@@ -250,7 +253,7 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
           value := player.toString
         ),
         label(
-          "Which beer will we drink your round? ",
+          "Which beer will we taste during your round? ",
           input(
             `type` := "text",
             name := "beer",
@@ -263,9 +266,9 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
           )
         ),
         p(
-          input(`type` := "submit", value := "Assign"),
+          input(`type` := "submit", value := "Assign Beer"),
           if (state.playerBeers.getOrElse(player, None).isDefined) {
-            " ✅"
+            confirm()
           } else {}
         )
       ),
@@ -297,7 +300,7 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
     aside(
       p(
         if (!state.canStart) {
-          "We need at least three players and everyone assigned a beer to start."
+          "We need at least three players and everyone assigned a beer to start the game."
         } else {
           state.leader match {
             case None =>
@@ -324,16 +327,16 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
     frag(
       h1("🍺 ", state.roundNum.toInt, ": ", state.beer.toString),
       h2("Drinking / Writing Time"),
+      p("Cheers! Have a taste of ", b(state.beer.toString), "."),
       p(
-        "This round you're the host! Look up the actual brewer's description of ",
-        b(state.beer.toString),
-        " and submit it below. ", {
+        "This round you're the host! ",
+        "While everyone else is writing a fake description for this beer, look up the brewer's real description and submit it below. ", {
           val query = s"${state.beer.toString} beer description"
           a(
             href := s"https://www.google.com/search?q=${URLEncoder
               .encode(query, StandardCharsets.UTF_8.name())}",
             target := "_blank"
-          )("I can Google it for you.")
+          )("I can even Google it for you.")
         }
       ),
       p(
@@ -348,15 +351,15 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
         ),
         textarea(
           name := "desc",
-          placeholder := "Actual brewer's beer description...",
+          placeholder := "Real beer description...",
           required
         )(
           state.descs.getOrElse(player, None).getOrElse(Desc("")).toString
         ),
         p(
-          input(`type` := "submit", value := "Submit"),
+          input(`type` := "submit", value := "Submit Description"),
           if (state.descs.getOrElse(player, None).isDefined) {
-            " ✅"
+            confirm()
           } else {}
         )
       )
@@ -369,10 +372,9 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
     frag(
       h1("🍺 ", state.roundNum.toInt, ": ", state.beer.toString),
       h2("Drinking / Writing Time"),
+      p("Cheers! Have a taste of ", b(state.beer.toString), "."),
       p(
-        "Time to be crafty. Drink some ",
-        b(state.beer.toString),
-        " and write a beer description that will trick others into thinking it came from the actual brewer."
+        "Write a fake beer description that will trick others into thinking it came from the actual brewer."
       ),
       p(
         "You can re-submit your description until everyone has submitted theirs."
@@ -392,9 +394,9 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
           state.descs.getOrElse(player, None).getOrElse(Desc("")).toString
         ),
         p(
-          input(`type` := "submit", value := "Submit"),
+          input(`type` := "submit", value := "Submit Description"),
           if (state.descs.getOrElse(player, None).isDefined) {
-            " ✅"
+            confirm()
           } else {}
         )
       )
@@ -403,8 +405,9 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
   private def hostReadingContent(state: Game.State.ReadingState) = frag(
     h1("🍺 ", state.roundNum.toInt, ": ", state.beer.toString),
     h2("Drinking / Reading Time"),
+    p("I shuffled up all the submitted descriptions."),
     p(
-      "Since you're the host this round, read each description aloud to everyone."
+      "Now, as the host this round, read each beer description aloud to everyone."
     ),
     h3("Description ", state.entry.index.toInt),
     blockquote(state.entry.desc.toString),
@@ -421,8 +424,9 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
         value := state.entry.index.toInt
       ),
       state.entriesRemaining match {
-        case _ :: _ => input(`type` := "submit", value := "Read Next")
-        case Seq()  => input(`type` := "submit", value := "Begin Voting")
+        case _ :: _ =>
+          input(`type` := "submit", value := "Read Next Description")
+        case Seq() => input(`type` := "submit", value := "Begin Voting")
       }
     )
   )
@@ -430,10 +434,11 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
   private def guestReadingContent(state: Game.State.ReadingState) = frag(
     h1("🍺 ", state.roundNum.toInt, ": ", state.beer.toString),
     h2("Drinking / Reading Time"),
+    p("I shuffled up all the submitted descriptions."),
     p(
       "Listen to ",
       state.host.toString,
-      " read the descriptions and think about which is from the real brewer."
+      " read the beer descriptions and think about which is real."
     ),
     p("Don't worry, you'll get to see them all at the end."),
     h4("Description ", state.entry.index.toInt),
@@ -443,11 +448,13 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
   private def hostVotingContent(state: Game.State.VotingState) = frag(
     h1("🍺 ", state.roundNum.toInt, ": ", state.beer.toString),
     h2("Drinking / Voting Time"),
+    p("Everyone else is now guessing which beer description was real."),
     p(
-      "Since you're the host this round, you don't vote. Wait until everyone else is done."
+      "Since you're the host and know which is real, you don't vote. ",
+      "Wait until everyone else has voted."
     ),
     p(
-      "You'll score points if no one correctly identifies the actual description."
+      "You'll score points if no one votes for the real description."
     ),
     for (entry <- state.ballot)
       yield frag(
@@ -460,10 +467,11 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
     frag(
       h1("🍺 ", state.roundNum.toInt, ": ", state.beer.toString),
       h2("Drinking / Voting Time"),
+      p("Guess which beer description was real."),
       p(
-        "You'll score points by voting for the actual brewer's description."
+        "You'll score points if you vote for the real description.",
+        "If you vote for someone else's fake description, the writer who tricked you will get points instead."
       ),
-      p("If you pick a fake description, the writer will get points instead!"),
       p("You can re-cast your ballot until everyone has submitted theirs."),
       form(method := "POST")(
         input(`type` := "hidden", name := "event_type", value := "record_vote"),
@@ -502,7 +510,7 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
               .getOrElse(player, None)
               .isDefined
           ) {
-            " ✅"
+            confirm()
           } else {}
         )
       )
@@ -656,13 +664,13 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
       // Ignore these since no info is displayed about other players on a given player's device.
       // We don't want to overwrite un-submitted input with a refresh.
       case Game.Transition(
-            _: Game.Msg.SubmitDesc,
+            msg: Game.Msg.SubmitDesc,
             _: Game.State.WritingState
-          ) => {}
+          ) if msg.writer != player => {}
       case Game.Transition(
-            _: Game.Msg.RecordVote,
+            msg: Game.Msg.RecordVote,
             _: Game.State.VotingState
-          ) => {}
+          ) if msg.voter != player => {}
       case Game.Transition(_, state) => {
         turboStream(action := "update", target := "main")(
           template(main(mainContent(code, player, state)))
