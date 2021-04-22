@@ -43,6 +43,9 @@ class HowToPlayRoute() extends RouteObj {
             ),
             li(
               "3 points to the host if nobody votes for the real description for being lucky"
+            ),
+            li(
+              "0 points if you vote for your own fake description for being forgetful"
             )
           ),
           p(

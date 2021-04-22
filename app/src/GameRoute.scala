@@ -322,7 +322,7 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
             href := s"https://www.google.com/search?q=${URLEncoder
               .encode(query, StandardCharsets.UTF_8.name())}",
             target := "_blank"
-          )("I can even Google it for you.")
+          )("I can Google it for you.")
         }
       ),
       p(
@@ -459,7 +459,7 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
       h2("Drinking / Voting Time"),
       p("Guess which beer description was real."),
       p(
-        "You'll score points if you vote for the real description.",
+        "You'll score points if you vote for the real description. ",
         "If you vote for someone else's fake description, the writer who tricked you will get points instead."
       ),
       p("You can re-cast your ballot until everyone has submitted theirs."),
