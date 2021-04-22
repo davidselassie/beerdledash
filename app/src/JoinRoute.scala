@@ -1,7 +1,8 @@
 import Extensions.QueryStringEx
-import GameDirective.{formPlayer, queryGame}
+import GameDirective.gameParam
 import GameRejection.GameAlreadyStartedRejection
 import GameTypes.{Code, Name}
+import GameTypesUnmarshallers._
 import HtmlRenderer.htmlContent
 import ScalatagsMarshallers._
 import akka.actor.typed.scaladsl.AskPattern.{Askable, schedulerFromActorSystem}
@@ -10,6 +11,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives.{
   complete,
   concat,
+  formField,
   get,
   onSuccess,
   path,
@@ -19,6 +21,7 @@ import akka.http.scaladsl.server.Directives.{
   reject
 }
 import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.directives.FormFieldDirectives._
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.google.zxing.qrcode.encoder.Encoder
 import scalatags.Text.attrs.{
@@ -43,6 +46,8 @@ class JoinRoute(
 )(implicit
     system: ActorSystem[_]
 ) extends RouteObj {
+
+  implicit val d: ActorRef[Directory.Msg] = directory
 
   override val route: Route = pathPrefix("join") {
     concat(
@@ -76,17 +81,16 @@ class JoinRoute(
     )
   )
 
-  private def handleGet() = queryGame(directory, system, askTimeout) {
-    (code, room, state) =>
-      state match {
-        case _: Game.State.WaitingState =>
-          complete(StatusCodes.OK, bodyContent(code))
-        case _ => reject(GameAlreadyStartedRejection(code))
-      }
+  private def handleGet() = gameParam.apply { (code, room, state) =>
+    state match {
+      case _: Game.State.WaitingState =>
+        complete(StatusCodes.OK, bodyContent(code))
+      case _ => reject(GameAlreadyStartedRejection(code))
+    }
   }
 
-  private def handlePost() = formPlayer { (player) =>
-    queryGame(directory, system, askTimeout) { (code, room, state) =>
+  private def handlePost() = formField("name".as[Name]) { (player) =>
+    gameParam(directory, system, askTimeout) { (code, room, state) =>
       state match {
         case _: Game.State.WaitingState => {
           room ! Game.Msg.PlayerJoin(player)
@@ -113,12 +117,11 @@ class JoinRoute(
     ).toString
   }
 
-  private def handleQr() = queryGame(directory, system, askTimeout) {
-    (code, room, state) =>
-      import QRCodeToSVGWriter.SvgMarshaller
+  private def handleQr() = gameParam.apply { (code, room, state) =>
+    import QRCodeToSVGWriter.SvgMarshaller
 
-      val qr = Encoder.encode(joinUrlStr(code), ErrorCorrectionLevel.M)
-      val svg = QRCodeToSVGWriter.render(qr)
-      complete(svg)
+    val qr = Encoder.encode(joinUrlStr(code), ErrorCorrectionLevel.M)
+    val svg = QRCodeToSVGWriter.render(qr)
+    complete(svg)
   }
 }

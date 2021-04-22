@@ -1,5 +1,5 @@
 import Extensions.QueryStringEx
-import GameDirective.{queryGame, queryPlayer}
+import GameDirective.{gameParam, playerParam}
 import GameTypes._
 import GameTypesUnmarshallers._
 import HtmlRenderer.htmlContent
@@ -82,6 +82,7 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
     implicit system: ActorSystem[_]
 ) extends RouteObj {
 
+  implicit val d: ActorRef[Directory.Msg] = directory
   implicit val ec: ExecutionContext = system.executionContext
   implicit val log: LoggingAdapter =
     Logging(system.classicSystem, this)((t: GameRoute) => "GameRoute")
@@ -100,76 +101,68 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
     )
   }
 
-  private def handlePost() = queryPlayer { (player) =>
-    queryGame(directory, system, askTimeout) { (code, room, oldState) =>
+  private def handlePost() = playerParam { (player) =>
+    gameParam.apply { (code, room, oldState) =>
       val query = Map(
         "code" -> code.toString,
         "name" -> player.toString
+      )
+      val reload = redirect(
+        s"/game?${query.queryString()}",
+        StatusCodes.SeeOther
       )
       formFields("event_type") {
         // Turbo requires POST submissions to result in redirects to the resulting info.
         case "assign_beer" =>
           formFields("beer".as[Beer]) { (beer) =>
             room ! Game.Msg.AssignBeer(player, beer)
-            onSuccess(room.ask(Game.Msg.GetState)) { (state) =>
-              redirect(s"/game?${query.queryString()}", StatusCodes.SeeOther)
-            }
+            reload
           }
         case "start_game" => {
           room ! Game.Msg.StartGame
-          onSuccess(room.ask(Game.Msg.GetState)) { (state) =>
-            redirect(s"/game?${query.queryString()}", StatusCodes.SeeOther)
-          }
+          reload
         }
         case "next_round" =>
           formFields("last_round_num".as[RoundNum]) { (lastRoundNum) =>
             room ! Game.Msg.BeginNextRound(lastRoundNum)
-            onSuccess(room.ask(Game.Msg.GetState)) { (state) =>
-              redirect(s"/game?${query.queryString()}", StatusCodes.SeeOther)
-            }
+            reload
           }
         case "submit_desc" =>
           formFields("round_num".as[RoundNum], "desc".as[Desc]) {
             (roundNum, desc) =>
               room ! Game.Msg.SubmitDesc(roundNum, player, desc)
-              onSuccess(room.ask(Game.Msg.GetState)) { (state) =>
-                redirect(
-                  s"/game?${query.queryString()}",
-                  StatusCodes.SeeOther
-                )
-              }
+              reload
           }
         case "read_next" => {
           formFields("round_num".as[RoundNum], "last_index".as[BallotIndex]) {
             (roundNum, lastIndex) =>
               room ! Game.Msg.ReadNext(roundNum, lastIndex)
-              onSuccess(room.ask(Game.Msg.GetState)) { (state) =>
-                redirect(s"/game?${query.queryString()}", StatusCodes.SeeOther)
-              }
+              reload
           }
         }
         case "record_vote" =>
           formFields("round_num".as[RoundNum], "vote_index".as[BallotIndex]) {
             (roundNum, index) =>
               room ! Game.Msg.RecordVote(roundNum, player, index)
-              onSuccess(room.ask(Game.Msg.GetState)) { (state) =>
-                redirect(s"/game?${query.queryString()}", StatusCodes.SeeOther)
-              }
+              reload
           }
         case unknown =>
-          reject(ValidationRejection(s"Unknown event type ${unknown}"))
+          reject(ValidationRejection(s"unknown event type ${unknown}"))
       }
     }
   }
 
-  private def handleGet() = queryPlayer { (player) =>
-    queryGame(directory, system, askTimeout) { (code, room, state) =>
+  private def handleGet() = playerParam { (player) =>
+    gameParam.apply { (code, room, state) =>
       renderPage(code, player, state)
     }
   }
 
   private def headerScript(code: Code, player: Name) = {
-    val query = Map("code" -> code.toString, "name" -> player.toString)
+    val query = Map(
+      "code" -> code.toString,
+      "name" -> player.toString
+    )
     turboScript(s"/game/stream?${query.queryString()}")
   }
 
@@ -596,8 +589,8 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
     )
   )
 
-  private def handleSSE() = queryPlayer { (player) =>
-    queryGame(directory, system, askTimeout) { (code, room, state) =>
+  private def handleSSE() = playerParam { (player) =>
+    gameParam.apply { (code, room, state) =>
       val (queue, source) = Source
         .queue[Game.Transition](0, OverflowStrategy.dropHead)
         //.log("SSE Transition")

@@ -3,9 +3,8 @@ import GameTypes.{Code, Name}
 import GameTypesUnmarshallers._
 import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.http.scaladsl.server.Directives.{
-  formFields,
   onSuccess,
-  parameters,
+  parameter,
   reject,
   tprovide
 }
@@ -35,21 +34,12 @@ object GameDirective {
     case Directory.NotFound => reject(RoomNotFoundRejection(code))
   }
 
-  def formGame(implicit
+  def gameParam(implicit
       directory: ActorRef[Directory.Msg],
       system: ActorSystem[_],
       timeout: Timeout
   ): Directive[(Code, ActorRef[Game.Msg], Game.State)] =
-    formFields("code".as[Code]).flatMap((code) => find(code))
+    parameter("code".as[Code]).flatMap((code) => find(code))
 
-  def queryGame(implicit
-      directory: ActorRef[Directory.Msg],
-      system: ActorSystem[_],
-      timeout: Timeout
-  ): Directive[(Code, ActorRef[Game.Msg], Game.State)] =
-    parameters("code".as[Code]).flatMap((code) => find(code))
-
-  val formPlayer: Directive1[Name] = formFields("name".as[Name])
-
-  val queryPlayer: Directive1[Name] = parameters("name".as[Name])
+  val playerParam: Directive1[Name] = parameter("name".as[Name])
 }
