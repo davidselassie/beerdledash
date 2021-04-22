@@ -1,10 +1,13 @@
-import GameTypes.{BallotIndex, Beer, Desc, Name, RoundNum}
+import GameTypes.{BallotIndex, Beer, Code, Desc, Name, RoundNum}
 import akka.http.scaladsl.unmarshalling.{
   PredefinedFromStringUnmarshallers,
   Unmarshaller
 }
 
 object GameTypesUnmarshallers {
+
+  implicit val CodeUnmarshaller: Unmarshaller[String, Code] =
+    Unmarshaller.strict((str) => Code(str))
 
   implicit val RoundNumUnmarshaller: Unmarshaller[String, RoundNum] =
     PredefinedFromStringUnmarshallers.intFromStringUnmarshaller

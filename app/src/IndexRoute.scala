@@ -1,4 +1,5 @@
-import AutoTags.autocapitalize
+import InputTags.{autocapitalize, minlength}
+import GameTypes.Code
 import HtmlRenderer.htmlContent
 import ScalatagsMarshallers._
 import akka.http.scaladsl.model.StatusCodes
@@ -7,12 +8,13 @@ import akka.http.scaladsl.server.Route
 import scalatags.Text.attrs.{
   `type`,
   action,
+  href,
+  maxlength,
   method,
   name,
   placeholder,
   required,
-  value,
-  href
+  value
 }
 import scalatags.Text.implicits._
 import scalatags.Text.tags.{a, form, h1, h2, input, label, p}
@@ -44,6 +46,8 @@ class IndexRoute() extends RouteObj {
                 `type` := "text",
                 name := "code",
                 required,
+                minlength := Code.Length,
+                maxlength := Code.Length,
                 autocapitalize := "characters",
                 placeholder := "ABCD"
               )

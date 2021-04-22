@@ -20,9 +20,10 @@ import akka.http.scaladsl.server.Directives.{
   path,
   pathPrefix,
   post,
-  redirect
+  redirect,
+  reject
 }
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{Route, ValidationRejection}
 import akka.http.scaladsl.server.directives.FormFieldDirectives._
 import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.Source
@@ -36,6 +37,7 @@ import scalatags.Text.attrs.{
   disabled,
   href,
   id,
+  maxlength,
   method,
   name,
   placeholder,
@@ -101,16 +103,13 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
   private def handlePost() = queryPlayer { (player) =>
     queryGame(directory, system, askTimeout) { (code, room, oldState) =>
       val query = Map(
-        "code" -> code,
+        "code" -> code.toString,
         "name" -> player.toString
       )
       formFields("event_type") {
         // Turbo requires POST submissions to result in redirects to the resulting info.
         case "assign_beer" =>
-          formFields(
-            "player".as[Name],
-            "beer".as[Beer]
-          ) { (player, beer) =>
+          formFields("beer".as[Beer]) { (beer) =>
             room ! Game.Msg.AssignBeer(player, beer)
             onSuccess(room.ask(Game.Msg.GetState)) { (state) =>
               redirect(s"/game?${query.queryString()}", StatusCodes.SeeOther)
@@ -123,9 +122,7 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
           }
         }
         case "next_round" =>
-          formFields(
-            "last_round_num".as[RoundNum]
-          ) { (lastRoundNum) =>
+          formFields("last_round_num".as[RoundNum]) { (lastRoundNum) =>
             room ! Game.Msg.BeginNextRound(lastRoundNum)
             onSuccess(room.ask(Game.Msg.GetState)) { (state) =>
               redirect(s"/game?${query.queryString()}", StatusCodes.SeeOther)
@@ -143,27 +140,24 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
               }
           }
         case "read_next" => {
-          formFields(
-            "round_num".as[RoundNum],
-            "last_index".as[BallotIndex]
-          ) { (roundNum, lastIndex) =>
-            room ! Game.Msg.ReadNext(roundNum, lastIndex)
-            onSuccess(room.ask(Game.Msg.GetState)) { (state) =>
-              redirect(s"/game?${query.queryString()}", StatusCodes.SeeOther)
-            }
+          formFields("round_num".as[RoundNum], "last_index".as[BallotIndex]) {
+            (roundNum, lastIndex) =>
+              room ! Game.Msg.ReadNext(roundNum, lastIndex)
+              onSuccess(room.ask(Game.Msg.GetState)) { (state) =>
+                redirect(s"/game?${query.queryString()}", StatusCodes.SeeOther)
+              }
           }
         }
         case "record_vote" =>
-          formFields(
-            "round_num".as[RoundNum],
-            "vote_index".as[BallotIndex]
-          ) { (roundNum, index) =>
-            room ! Game.Msg.RecordVote(roundNum, player, index)
-            onSuccess(room.ask(Game.Msg.GetState)) { (state) =>
-              redirect(s"/game?${query.queryString()}", StatusCodes.SeeOther)
-            }
+          formFields("round_num".as[RoundNum], "vote_index".as[BallotIndex]) {
+            (roundNum, index) =>
+              room ! Game.Msg.RecordVote(roundNum, player, index)
+              onSuccess(room.ask(Game.Msg.GetState)) { (state) =>
+                redirect(s"/game?${query.queryString()}", StatusCodes.SeeOther)
+              }
           }
-        case _ => complete(StatusCodes.BadRequest, "Unknown event_type")
+        case unknown =>
+          reject(ValidationRejection(s"Unknown event type ${unknown}"))
       }
     }
   }
@@ -174,12 +168,12 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
     }
   }
 
-  private def headerScript(code: String, player: Name) = {
-    val query = Map("code" -> code, "name" -> player.toString)
+  private def headerScript(code: Code, player: Name) = {
+    val query = Map("code" -> code.toString, "name" -> player.toString)
     turboScript(s"/game/stream?${query.queryString()}")
   }
 
-  private def renderPage(code: String, player: Name, state: Game.State) = {
+  private def renderPage(code: Code, player: Name, state: Game.State) = {
     val response = htmlContent(
       turboFrame(id := "main")(main(mainContent(code, player, state))),
       headerScript(code, player)
@@ -188,7 +182,7 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
   }
 
   private def mainContent(
-      code: String,
+      code: Code,
       player: Name,
       state: Game.State
   ): Frag = {
@@ -210,34 +204,37 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
   private def confirm() = span(`class` := "confirm")(" ✅")
 
   private def waitingContent(
-      code: String,
+      code: Code,
       player: Name,
       state: Game.State.WaitingState
   ) =
     frag(
-      h1("Waiting Room ", codetag(code)),
+      h1("Waiting Room ", codetag(code.toString)),
       p(
-        "New players can scan this barcode or ",
+        "New players can join by scanning this barcode, ",
         a(href := joinRoute.joinUrlStr(code), target := "_blank")(
-          "go to ",
+          "sharing this link with them"
+        ),
+        ", or by ",
+        a(href := joinRoute.publicRoot.toString, target := "_blank")(
+          "going to ",
           codetag(joinRoute.publicRoot.toString),
-          " and enter ",
-          codetag(code),
-          " to join"
+          " and entering the code ",
+          codetag(code.toString)
         ),
         "."
       ),
       div(`class` := "center")(
         img(
           `class` := "qr", {
-            val query = Map("code" -> code)
+            val query = Map("code" -> code.toString)
             src := s"/join/qr?${query.queryString()}"
           },
-          alt := "QR code to join game."
+          alt := "Barcode to join game."
         )
       ),
       p(
-        "While everyone is gathering, ",
+        "While waiting for everyone to join, ",
         a(href := "/howto", target := "_blank")("learn how to play.")
       ),
       h2("Players and Beers"),
@@ -247,11 +244,6 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
           name := "event_type",
           value := "assign_beer"
         ),
-        input(
-          `type` := "hidden",
-          name := "player",
-          value := player.toString
-        ),
         label(
           "Which beer will we taste during your round? ",
           input(
@@ -259,6 +251,7 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
             name := "beer",
             placeholder := "PBR",
             required,
+            maxlength := Beer.MaxLength,
             state.playerBeers.getOrElse(player, None) match {
               case Some(beer) => value := beer.toString
               case None       => {}
@@ -352,7 +345,8 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
         textarea(
           name := "desc",
           placeholder := "Real beer description...",
-          required
+          required,
+          maxlength := Desc.MaxLength
         )(
           state.descs.getOrElse(player, None).getOrElse(Desc("")).toString
         ),
@@ -389,7 +383,8 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
         textarea(
           name := "desc",
           placeholder := "Your fake beer description...",
-          required
+          required,
+          maxlength := Desc.MaxLength
         )(
           state.descs.getOrElse(player, None).getOrElse(Desc("")).toString
         ),
@@ -628,7 +623,7 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
   }
 
   private def renderTransition(
-      code: String,
+      code: Code,
       player: Name
   )(transition: Game.Transition): Frag = {
     transition match {

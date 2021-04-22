@@ -21,7 +21,7 @@ class CreateRoute(directory: ActorRef[Directory.Msg])(implicit
   private def handlePost() =
     onSuccess(directory.ask((replyTo) => Directory.Create(replyTo))) {
       case Directory.Created(code, _) => {
-        val query = Map("code" -> code)
+        val query = Map("code" -> code.toString)
         redirect(s"/join?${query.queryString()}", StatusCodes.SeeOther)
       }
     }

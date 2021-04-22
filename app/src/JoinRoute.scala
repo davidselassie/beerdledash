@@ -1,7 +1,7 @@
-import AutoTags.autocomplete
 import Extensions.QueryStringEx
 import GameDirective.{formPlayer, queryGame}
-import GameTypes.Name
+import GameRejection.GameAlreadyStartedRejection
+import GameTypes.{Code, Name}
 import HtmlRenderer.htmlContent
 import ScalatagsMarshallers._
 import akka.actor.typed.scaladsl.AskPattern.{Askable, schedulerFromActorSystem}
@@ -15,14 +15,16 @@ import akka.http.scaladsl.server.Directives.{
   path,
   pathPrefix,
   post,
-  redirect
+  redirect,
+  reject
 }
 import akka.http.scaladsl.server.Route
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.google.zxing.qrcode.encoder.Encoder
 import scalatags.Text.attrs.{
   `type`,
-  href,
+  autocomplete,
+  maxlength,
   method,
   name,
   placeholder,
@@ -30,7 +32,7 @@ import scalatags.Text.attrs.{
   value
 }
 import scalatags.Text.implicits._
-import scalatags.Text.tags.{a, form, h1, input, label, p, code => codetag}
+import scalatags.Text.tags.{form, h1, input, label, p, code => codetag}
 import scalatags.Text.tags2.main
 
 import java.net.URL
@@ -54,10 +56,10 @@ class JoinRoute(
     )
   }
 
-  private def bodyContent(code: String) = htmlContent(
+  private def bodyContent(code: Code) = htmlContent(
     main(
       form(method := "POST")(
-        h1("Join Game ", codetag(code)),
+        h1("Join Game ", codetag(code.toString)),
         label(
           "What's your name? ",
           input(
@@ -65,22 +67,11 @@ class JoinRoute(
             name := "name",
             autocomplete := "given-name",
             required,
+            maxlength := Name.MaxLength,
             placeholder := "Rob"
           )
         ),
         p(input(`type` := "submit", value := "Join"))
-      )
-    )
-  )
-
-  private def gameAlreadyStartedBody(code: String) = htmlContent(
-    main(
-      h1("Game ", codetag(code), " Already Started"),
-      p("You can only join a game before it starts."),
-      p(
-        "If someone accidentally pressed Start Game, ",
-        a(href := "/create")("create a new game"),
-        " and have everyone join with that new code."
       )
     )
   )
@@ -90,36 +81,30 @@ class JoinRoute(
       state match {
         case _: Game.State.WaitingState =>
           complete(StatusCodes.OK, bodyContent(code))
-        case _ => complete(StatusCodes.BadRequest, gameAlreadyStartedBody(code))
+        case _ => reject(GameAlreadyStartedRejection(code))
       }
   }
 
   private def handlePost() = formPlayer { (player) =>
     queryGame(directory, system, askTimeout) { (code, room, state) =>
       state match {
-        case _: Game.State.WaitingState => join(player, code, room)
-        case _                          => complete(StatusCodes.BadRequest, gameAlreadyStartedBody(code))
+        case _: Game.State.WaitingState => {
+          room ! Game.Msg.PlayerJoin(player)
+          onSuccess(room.ask(Game.Msg.GetState)) { (state) =>
+            val query = Map(
+              "code" -> code.toString,
+              "name" -> player.toString
+            )
+            redirect(s"/game?${query.queryString()}", StatusCodes.SeeOther)
+          }
+        }
+        case _ => reject(GameAlreadyStartedRejection(code))
       }
     }
   }
 
-  private def join(
-      player: Name,
-      code: String,
-      room: ActorRef[Game.Msg]
-  ) = {
-    room ! Game.Msg.PlayerJoin(player)
-    onSuccess(room.ask(Game.Msg.GetState)) { (state) =>
-      val query = Map(
-        "code" -> code,
-        "name" -> player.toString
-      )
-      redirect(s"/game?${query.queryString()}", StatusCodes.SeeOther)
-    }
-  }
-
-  def joinUrlStr(code: String): String = {
-    val query = Map("code" -> code)
+  def joinUrlStr(code: Code): String = {
+    val query = Map("code" -> code.toString)
     new URL(
       publicRoot.getProtocol,
       publicRoot.getHost,

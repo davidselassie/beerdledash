@@ -1,3 +1,4 @@
+import GameTypes.Code
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
 
@@ -7,10 +8,10 @@ object Directory {
 
   sealed trait Msg
   final case class Create(replyTo: ActorRef[Created]) extends Msg
-  final case class Find(replyTo: ActorRef[FindRes], code: String) extends Msg
-  private final case class Unregister(code: String) extends Msg
+  final case class Find(replyTo: ActorRef[FindRes], code: Code) extends Msg
+  private final case class Unregister(code: Code) extends Msg
 
-  final case class Created(code: String, room: ActorRef[Game.Msg])
+  final case class Created(code: Code, room: ActorRef[Game.Msg])
 
   sealed trait FindRes
   final case class Found(game: ActorRef[Game.Msg]) extends FindRes
@@ -26,13 +27,13 @@ private class Directory(ctx: ActorContext[Directory.Msg], random: Random) {
   import Directory._
 
   def behavior(
-      phonebook: Map[String, ActorRef[Game.Msg]]
+      phonebook: Map[Code, ActorRef[Game.Msg]]
   ): Behavior[Msg] = Behaviors.receiveMessage {
     case Create(replyTo) => {
       val newCode = genCodes()
         .filterNot((code) => phonebook.contains(code))
         .head
-      val game = ctx.spawn(Game(random), newCode)
+      val game = ctx.spawn(Game(random), newCode.toString)
       ctx.watchWith(game, Unregister(newCode))
       replyTo ! Created(newCode, game)
       ctx.log.info(s"Created game ${newCode}")
@@ -57,14 +58,16 @@ private class Directory(ctx: ActorContext[Directory.Msg], random: Random) {
     }
   }
 
-  private def genCode() =
-    random.alphanumeric
-      .filter(_.isLetter)
-      .take(4)
-      .mkString
-      .toUpperCase
+  private def genCode(): Code =
+    Code(
+      random.alphanumeric
+        .filter(_.isLetter)
+        .take(Code.Length)
+        .mkString
+        .toUpperCase
+    )
 
-  private def genCodes(): LazyList[String] = {
+  private def genCodes(): LazyList[Code] = {
     genCode() #:: genCodes()
   }
 }

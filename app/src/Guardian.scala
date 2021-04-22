@@ -3,6 +3,7 @@ import akka.actor.typed.{ActorSystem, Behavior, PostStop}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.server.Directives.concat
+import akka.http.scaladsl.server.Route.seal
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Random, Success}
@@ -21,6 +22,8 @@ object Guardian {
   def apply(config: EnvConfig): Behavior[Msg] = Behaviors.setup { (ctx) =>
     implicit val system: ActorSystem[Nothing] = ctx.system
     implicit val ec: ExecutionContext = system.executionContext
+
+    import GameRejection.Handler
 
     val random = new Random()
     val directory = ctx.spawn(Directory(random), "directory")
@@ -46,7 +49,7 @@ object Guardian {
     )
     val httpFuture = Http()
       .newServerAt(config.host, config.privatePort)
-      .bind(concat(routes.map(_.route): _*))
+      .bind(seal(concat(routes.map(_.route): _*)))
     ctx.pipeToSelf(httpFuture) {
       case Success(http) => Msg.Started(http)
       case Failure(ex)   => Msg.StartFailed(ex)
