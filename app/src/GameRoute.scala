@@ -208,13 +208,10 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
         a(href := joinRoute.joinUrlStr(code), target := "_blank")(
           "sharing this link with them"
         ),
-        ", or by ",
-        a(href := joinRoute.publicRoot.toString, target := "_blank")(
-          "going to ",
-          codetag(joinRoute.publicRoot.toString),
-          " and entering the code ",
-          codetag(code.toString)
-        ),
+        ", or by going to ",
+        codetag(joinRoute.publicRoot.toString),
+        " and entering the code ",
+        codetag(code.toString),
         "."
       ),
       div(`class` := "center")(
@@ -227,8 +224,7 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
         )
       ),
       p(
-        "While waiting for everyone to join, ",
-        a(href := "/howto", target := "_blank")("learn how to play.")
+        a(href := "/howto", target := "_blank")("Learn how to play.")
       ),
       h2("Players and Beers"),
       form(id := "assign", method := "POST")(
@@ -316,7 +312,11 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
       p("Cheers! Have a taste of ", b(state.beer.toString), "."),
       p(
         "This round you're the host! ",
-        "While everyone else is writing a fake description for this beer, look up the brewer's real description and submit it below. ", {
+        "Don't worry, I'll guide you through what to do."
+      ),
+      p(
+        "While everyone else is writing a fake description of this beer, look up the real brewer's description and submit it. ",
+        "If you're too drunk, ", {
           val query = s"${state.beer.toString} beer description"
           a(
             href := s"https://www.google.com/search?q=${URLEncoder
@@ -361,7 +361,7 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
       h2("Drinking / Writing Time"),
       p("Cheers! Have a taste of ", b(state.beer.toString), "."),
       p(
-        "Write a fake beer description that will trick others into thinking it came from the actual brewer."
+        "Write a fake beer description that will trick others into thinking it came from the real brewer."
       ),
       p(
         "You can re-submit your description until everyone has submitted theirs."
@@ -393,7 +393,7 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
   private def hostReadingContent(state: Game.State.ReadingState) = frag(
     h1("🍺 ", state.roundNum.toInt, ": ", state.beer.toString),
     h2("Drinking / Reading Time"),
-    p("I shuffled up all the submitted descriptions."),
+    p("I shuffled up all the descriptions."),
     p(
       "Now, as the host this round, read each beer description aloud to everyone."
     ),
@@ -422,13 +422,15 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
   private def guestReadingContent(state: Game.State.ReadingState) = frag(
     h1("🍺 ", state.roundNum.toInt, ": ", state.beer.toString),
     h2("Drinking / Reading Time"),
-    p("I shuffled up all the submitted descriptions."),
+    p("I shuffled up all the descriptions."),
     p(
-      "Listen to ",
+      "Listen to our host this round, ",
       state.host.toString,
-      " read the beer descriptions and think about which is real."
+      ", read the beer descriptions and think about which is the real one."
     ),
-    p("Don't worry, you'll get to see them all at the end."),
+    p(
+      "Don't worry about remembering them, you'll get to see them all at the end."
+    ),
     h4("Description ", state.entry.index.toInt),
     blockquote(state.entry.desc.toString)
   )
@@ -439,7 +441,7 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
     p("Everyone else is now guessing which beer description was real."),
     p(
       "Since you're the host and know which is real, you don't vote. ",
-      "Wait until everyone else has voted."
+      "Might as well have another sip and look at these kooky descriptions one more time while you're waiting for everyone else."
     ),
     p(
       "You'll score points if no one votes for the real description."
@@ -534,9 +536,9 @@ class GameRoute(joinRoute: JoinRoute, directory: ActorRef[Directory.Msg])(
             )
           )
         case nextRound :: _ =>
-          frag(
-            p(nextRound.host.toString, " is hosting the next round."),
-            aside(p("They can start it on their device."))
+          p(
+            nextRound.host.toString,
+            " is hosting and can start the next round."
           )
         case Seq() =>
           frag(

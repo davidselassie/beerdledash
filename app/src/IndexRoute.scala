@@ -32,7 +32,7 @@ class IndexRoute() extends RouteObj {
       htmlContent(
         main(
           h1("Welcome to Beerdledash!"),
-          p("It's like Balderdash for beer descriptions."),
+          p("It's suspiciously like Balderdash for beer descriptions."),
           p(a(href := "/howto")("Learn how to play.")),
           form(action := "/create", method := "POST")(
             h2("New Game"),

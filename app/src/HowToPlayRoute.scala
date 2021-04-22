@@ -19,7 +19,7 @@ class HowToPlayRoute() extends RouteObj {
       htmlContent(
         main(
           h1("How to Play Beerdledash"),
-          p("It's like Balderdash for beer descriptions."),
+          p("It's suspiciously like Balderdash for beer descriptions."),
           h2("Setup"),
           p(
             "Each player brings a different beer to share. ",
@@ -31,13 +31,19 @@ class HowToPlayRoute() extends RouteObj {
             "The host secretly looks up the real beer description from the brewer. ",
             "Everyone else secretly writes a fake beer description, trying to trick others into thinking their fake description is the real one. ",
             "I'll shuffle all the descriptions and the host will read them aloud. ",
-            "Everyone but the host votes for the description they think was real."
+            "Everyone but the host votes for the description they think was real to score points."
           ),
           h2("Scoring"),
           ul(
-            li("3 points to the host if nobody votes for the real description"),
-            li("2 points to each voter for the real description"),
-            li("1 point per vote to the writer of each fake description")
+            li(
+              "1 point per vote to the writer of each fake description for tricking them"
+            ),
+            li(
+              "2 points to each voter for the real description for being clever"
+            ),
+            li(
+              "3 points to the host if nobody votes for the real description for being lucky"
+            )
           ),
           p(
             "Scores are tallied up at the end of all the rounds and the winner has the most points."
